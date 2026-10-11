@@ -42,7 +42,7 @@ nonisolated struct AppSettings: Sendable {
     static let supportDirectory = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/DigUp")
     static let defaultIndexDirectory = supportDirectory.appendingPathComponent("index.noindex")
-    static let defaultHotkey = "cmd+shift+space"
+    static let defaultHotkey = "cmd+space"
 
     /// The battery switch, in onboarding and Settings.
     static let batteryTitle = "Index on battery power"
@@ -57,8 +57,17 @@ nonisolated struct AppSettings: Sendable {
 
     static func load() -> AppSettings {
         let defaults = Self.defaults
+        var userRoots = folders(defaults, "roots")
+        let appsDir = URL(fileURLWithPath: "/Applications")
+        if !userRoots.contains(appsDir) && FileManager.default.fileExists(atPath: appsDir.path) {
+            userRoots.append(appsDir)
+        }
+        let systemAppsDir = URL(fileURLWithPath: "/System/Applications")
+        if !userRoots.contains(systemAppsDir) && FileManager.default.fileExists(atPath: systemAppsDir.path) {
+            userRoots.append(systemAppsDir)
+        }
         return AppSettings(
-            roots: folders(defaults, "roots"),
+            roots: userRoots,
             excludedFolders: folders(defaults, "excludedFolders"),
             excludedTypes: (defaults.stringArray(forKey: "excludedTypes")
                 ?? defaults.string(forKey: "excludedTypes").map { [$0] } ?? [])

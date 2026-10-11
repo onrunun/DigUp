@@ -2,14 +2,14 @@ import Foundation
 
 /// What a file is, for indexing and for grouping results.
 public enum FileKind: String, CaseIterable, Sendable, Codable {
-    case screenshot, image, pdf, doc, audio, video
+    case app, screenshot, image, pdf, doc, audio, video
     /// Source code, a repo's docs and notebooks: only in the code index (`IndexOptions.code`).
     case code
 
     /// The order of the first indexing pass: what people look for most comes first.
     static let indexingOrderSQL = """
-        CASE kind WHEN 'screenshot' THEN 0 WHEN 'image' THEN 1 WHEN 'pdf' THEN 2 WHEN 'doc' THEN 3
-        WHEN 'audio' THEN 4 WHEN 'video' THEN 5 ELSE 6 END
+        CASE kind WHEN 'app' THEN 0 WHEN 'screenshot' THEN 1 WHEN 'image' THEN 2 WHEN 'pdf' THEN 3
+        WHEN 'doc' THEN 4 WHEN 'audio' THEN 5 WHEN 'video' THEN 6 ELSE 7 END
         """
 }
 

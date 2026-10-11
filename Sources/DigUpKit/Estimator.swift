@@ -71,6 +71,7 @@ public enum Estimator {
             switch file.kind {
             case .image: estimate.seconds += costs.image
             case .screenshot: estimate.seconds += costs.screenshot
+            case .app: estimate.seconds += costs.docChunk
             case .pdf:
                 let total = pages(of: file.path)
                 let all = min(total, options.maxPages)

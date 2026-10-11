@@ -108,6 +108,7 @@ public enum Rules {
     public static func classify(_ url: URL, type: UTType?, options: IndexOptions) -> Classification {
         let ext = url.pathExtension.lowercased()
         if options.excludedExtensions.contains(ext) { return .skip("excluded type") }
+        if ext == "app" { return .index(.app) }
         // .ts / .mts are usually TypeScript, which Spotlight calls MPEG-2 video. Only a real transport stream is video.
         if ext == "ts" || ext == "mts" || ext == "m2ts" {
             if isMPEGTransportStream(url) { return .index(.video) }

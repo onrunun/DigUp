@@ -66,8 +66,10 @@ public enum Crawler {
                     return
                 }
                 if values?.isPackage == true {
-                    report.skipped["app or bundle", default: 0] += 1
-                    return
+                    if url.pathExtension.lowercased() != "app" {
+                        report.skipped["app or bundle", default: 0] += 1
+                        return
+                    }
                 }
                 let classification = options.code ? Rules.classifyCode(url, options: options)
                     : Rules.classify(url, type: values?.contentType, options: options)
@@ -78,7 +80,8 @@ public enum Crawler {
                     report.skipped[reason, default: 0] += 1
                 case .index(let kind):
                     var info = stat()
-                    guard lstat(url.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else {
+                    guard lstat(url.path, &info) == 0,
+                          ((info.st_mode & S_IFMT) == S_IFREG || (kind == .app && (info.st_mode & S_IFMT) == S_IFDIR)) else {
                         report.skipped["link or special file", default: 0] += 1
                         return
                     }

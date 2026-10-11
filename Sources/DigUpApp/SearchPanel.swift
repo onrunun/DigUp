@@ -333,18 +333,78 @@ final class SearchPanelController {
     /// ↩: the file in its app, at the page or moment that matched when the app can be told where.
     func openSelected() {
         guard let row = selectedRow else { return }
+        if let scheme = row.url.scheme {
+            if scheme == "http" || scheme == "https" {
+                NSWorkspace.shared.open(row.url)
+                hide()
+                return
+            } else if scheme == "calc" {
+                let value = row.name.replacingOccurrences(of: "= ", with: "").trimmingCharacters(in: .whitespaces)
+                pasteboard.clearContents()
+                pasteboard.setString(value, forType: .string)
+                flash("Copied \(value)")
+                hide()
+                return
+            } else if scheme == "sys" {
+                let cmd = row.info["command"] ?? ""
+                QuickActions.executeSystemCommand(cmd)
+                hide()
+                return
+            } else if scheme == "terminal" {
+                let cmd = row.info["command"] ?? ""
+                QuickActions.runInTerminal(cmd)
+                hide()
+                return
+            } else if scheme == "ai" {
+                let prompt = row.info["prompt"] ?? ""
+                QuickActions.openAIQuery(prompt)
+                hide()
+                return
+            }
+        }
         engine.open(row)
         hide()
     }
 
     func revealSelected() {
         guard let row = selectedRow else { return }
+        if let scheme = row.url.scheme, scheme == "http" || scheme == "https" {
+            pasteboard.clearContents()
+            pasteboard.setString(row.url.absoluteString, forType: .string)
+            flash("Copied link")
+            return
+        }
         NSWorkspace.shared.activateFileViewerSelecting([row.url])
         hide()
     }
 
     func copySelected() {
         guard let row = selectedRow else { return }
+        if let scheme = row.url.scheme {
+            if scheme == "http" || scheme == "https" {
+                pasteboard.clearContents()
+                pasteboard.setString(row.url.absoluteString, forType: .string)
+                flash("Copied link")
+                return
+            } else if scheme == "calc" {
+                let value = row.name.replacingOccurrences(of: "= ", with: "").trimmingCharacters(in: .whitespaces)
+                pasteboard.clearContents()
+                pasteboard.setString(value, forType: .string)
+                flash("Copied \(value)")
+                return
+            } else if scheme == "sys", let cmd = row.info["command"], cmd.hasPrefix("ip:") {
+                let ip = cmd.dropFirst(3).components(separatedBy: " ").first ?? ""
+                pasteboard.clearContents()
+                pasteboard.setString(String(ip), forType: .string)
+                flash("Copied \(ip)")
+                return
+            } else if scheme == "terminal", let cmd = row.info["command"] {
+                pasteboard.clearContents()
+                pasteboard.setString(cmd, forType: .string)
+                flash("Copied command")
+                return
+            }
+        }
         pasteboard.clearContents()
         // As a file, like ⌘C in Finder: paste into a folder, a chat or a mail.
         pasteboard.writeObjects([row.url as NSURL])
@@ -405,9 +465,14 @@ final class SearchPanelController {
 
     /// Quick Look shows the selected result at its page or moment.
     private func updateQuickLook() {
-        window?.previewURL = selectedRow?.url
-        QLPreviewPanel.shared().reloadData()
-        QuickLookMoment.show(selectedRow, in: QLPreviewPanel.shared())
+        if let row = selectedRow, row.url.scheme == "file" || row.url.scheme == nil {
+            window?.previewURL = row.url
+            QLPreviewPanel.shared().reloadData()
+            QuickLookMoment.show(row, in: QLPreviewPanel.shared())
+        } else {
+            window?.previewURL = nil
+            QLPreviewPanel.shared().reloadData()
+        }
     }
 
     // MARK: Window

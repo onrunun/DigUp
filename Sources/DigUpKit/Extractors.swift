@@ -244,6 +244,48 @@ enum DocExtractor {
         return chunks
     }
 }
+public enum AppExtractor {
+    public struct AppInfo: Sendable {
+        public let name: String
+        public let bundleID: String
+        public let category: String
+        public let summary: String
+    }
+
+    public static func read(_ url: URL) throws -> AppInfo {
+        let plistURL = url.appendingPathComponent("Contents/Info.plist")
+        guard let plist = NSDictionary(contentsOf: plistURL) as? [String: Any] else {
+            throw ExtractError.unreadable("no Info.plist in \(url.lastPathComponent)")
+        }
+        let displayName = (plist["CFBundleDisplayName"] as? String)
+        let bundleName = (plist["CFBundleName"] as? String)
+        let filename = url.deletingPathExtension().lastPathComponent
+        let name = displayName ?? bundleName ?? filename
+
+        let bundleID = plist["CFBundleIdentifier"] as? String ?? ""
+        let cat = (plist["LSApplicationCategoryType"] as? String)?
+            .replacingOccurrences(of: "public.app-category.", with: "")
+            .replacingOccurrences(of: "-", with: " ") ?? ""
+        let category = cat.isEmpty ? "" : "\(cat.capitalized) application"
+
+        var parts: [String] = []
+        if let d = displayName, let b = bundleName, d != b { parts.append(b) }
+        if !category.isEmpty { parts.append(category) }
+
+        if let docTypes = plist["CFBundleDocumentTypes"] as? [[String: Any]] {
+            let names = docTypes.compactMap { $0["CFBundleTypeName"] as? String }
+            if !names.isEmpty { parts.append(names.prefix(10).joined(separator: ", ")) }
+        }
+
+        if let desc = (plist["NSHumanReadableDescription"] as? String)
+            ?? (plist["CFBundleGetInfoString"] as? String) {
+            parts.append(desc)
+        }
+
+        let summary = "\(name). " + parts.joined(separator: ". ")
+        return AppInfo(name: name, bundleID: bundleID, category: category, summary: summary)
+    }
+}
 
 /// One line, at most `limit` characters: for result lists.
 func excerpt(_ text: String, limit: Int = 240) -> String {

@@ -37,8 +37,15 @@ nonisolated final class FolderWatcher: @unchecked Sendable {
     }
 
     fileprivate func received(_ paths: [String]) {
+        let homeLib = FileManager.default.homeDirectoryForCurrentUser.path + "/Library"
         let relevant = paths.filter { path in
-            !path.split(separator: "/").contains { $0.hasPrefix(".") }
+            if path == homeLib || path.hasPrefix(homeLib + "/") { return false }
+            let parts = path.split(separator: "/")
+            for part in parts {
+                if part.hasPrefix(".") || part.hasSuffix(".noindex") { return false }
+                if part == "node_modules" || part == "DerivedData" || part == "venv" || part == "Caches" { return false }
+            }
+            return true
         }
         if !relevant.isEmpty { handler(relevant) }
     }

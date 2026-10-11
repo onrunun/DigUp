@@ -175,6 +175,7 @@ public final class Searcher {
         for file in candidates {
             var score = meaningWeight * max(best[file]?.z ?? 0, 0) + wordsWeight * pow(coverage[file] ?? 0, 1.5)
             if let kind = fileKind[file], hinted.contains(kind) { score += 1 }
+            if let kind = fileKind[file], kind == .app { score += 2.5 }
             scored[file] = score
         }
 
@@ -401,6 +402,7 @@ public final class Searcher {
         "papers": .pdf, "document": .doc, "documents": .doc, "note": .doc, "notes": .doc, "video": .video,
         "videos": .video, "clip": .video, "movie": .video, "audio": .audio, "song": .audio, "podcast": .audio,
         "voice": .audio, "sound": .audio,
+        "app": .app, "apps": .app, "application": .app, "applications": .app, "uygulama": .app, "program": .app,
         "স্ক্রিনশট": .screenshot, "ছবি": .image, "পিডিএফ": .pdf, "নোট": .doc, "ভিডিও": .video, "অডিও": .audio,
         "গান": .audio, "রেকর্ডিং": .audio,
         "لقطة": .screenshot, "صورة": .image, "صور": .image, "مستند": .doc, "ملاحظات": .doc, "فيديو": .video,

@@ -68,7 +68,7 @@ final class AppController {
             model.hotkey = hotkeys.register(combo) ? combo : nil
             log(model.hotkey == nil ? "hotkey \(combo.display) is taken by another app" : "hotkey \(combo.display)")
         } else {
-            log("hotkey: can't read \"\(model.settings.hotkey)\" (try cmd+shift+space)")
+            log("hotkey: can't read \"\(model.settings.hotkey)\" (try cmd+space)")
         }
 
         Previews.shared.passage = { [engine] id, code in await engine.text(ofSegment: id, code: code) }
@@ -215,8 +215,10 @@ final class AppController {
 
     /// Nil when `combo` is now the hotkey, else why it can't be.
     func setHotkey(_ combo: KeyCombo) -> String? {
-        if let conflict = combo.systemConflict { return conflict }
-        guard hotkeys.register(combo) else { return "Another app is using \(combo.display)" }
+        guard hotkeys.register(combo) else {
+            if let conflict = combo.systemConflict { return conflict }
+            return "Another app is using \(combo.display)"
+        }
         AppSettings.save(hotkey: combo.spec)
         model.settings.hotkey = combo.spec
         model.hotkey = combo

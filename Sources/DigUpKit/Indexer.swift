@@ -317,6 +317,7 @@ public final class Indexer {
         case audio(pieces: [MediaPiece], duration: Double)
         case video(frames: [MediaPiece], sound: [MediaPiece], duration: Double)
         case code(CodeExtractor.File)
+        case app(AppExtractor.AppInfo)
     }
 
     struct ReadyImage: Sendable {
@@ -416,6 +417,8 @@ public final class Indexer {
                 prepared.payload = .video(frames: frames, sound: sound, duration: duration)
             case .code:
                 prepared.payload = .code(try CodeExtractor.read(url, options: options))
+            case .app:
+                prepared.payload = .app(try AppExtractor.read(url))
             }
         } catch let error as ExtractError {
             if case .leftOut = error {
@@ -465,6 +468,8 @@ public final class Indexer {
                 results[0] = try video(batch[0], frames: frames, sound: sound, duration: duration)
             case .code(let code):
                 results[0] = try self.code(batch[0], code)
+            case .app(let app):
+                results[0] = try indexApp(batch[0], app: app)
             }
         } catch let error as WorkerError {
             throw error
@@ -640,6 +645,22 @@ public final class Indexer {
         return ("done", "\(code.pieces.count) stretches, \(code.cells.map { "\($0) cells" } ?? "\(code.lines) lines")"
                 + (worded.count < code.pieces.count ? ", \(code.pieces.count - worded.count) for keywords only" : ""))
     }
+    private func indexApp(_ file: FileRecord, app: AppExtractor.AppInfo) throws -> (String, String?) {
+        let title = app.name
+        let text = app.summary
+        let worker = try fullWorker()
+        let vector = try worker.embedTexts([Prompts.document(title: title, text: text)]).first
+        try store.db.transaction {
+            try store.addSegment(file: file.id, kind: .name, modality: .text,
+                                 loc: nil, excerpt: text, text: "\(title) \(text)",
+                                 vector: vector)
+            var info = ["name": title, "bundle_id": app.bundleID]
+            if !app.category.isEmpty { info["category"] = app.category }
+            try store.finish(file.id, state: "done", detail: nil, info: info)
+        }
+        return ("done", app.name)
+    }
+
 
     private func audio(_ file: FileRecord, pieces: [MediaPiece], duration: Double) throws -> (String, String?) {
         guard !pieces.isEmpty else {

@@ -137,15 +137,22 @@ struct PreviewPane: View {
                     .lineLimit(2)
                     .truncationMode(.middle)
                     .textSelection(.enabled)
-                Button {
-                    NSWorkspace.shared.activateFileViewerSelecting([row.url])
-                } label: {
-                    Text(row.folder).lineLimit(1).truncationMode(.head)
+                if row.url.isFileURL {
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([row.url])
+                    } label: {
+                        Text(row.folder).lineLimit(1).truncationMode(.head)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .help("Show in Finder")
+                } else {
+                    Text(row.folder)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-                .buttonStyle(.plain)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .help("Show in Finder")
                 Text(row.details)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
@@ -170,7 +177,9 @@ struct PreviewActions: View {
         HStack(spacing: 8) {
             Button(row.openTitle, action: open)
                 .keyboardShortcut(.defaultAction)
-            Button("Show in Finder", action: reveal)
+            if row.url.isFileURL {
+                Button("Show in Finder", action: reveal)
+            }
         }
         .controlSize(controlSize)
     }
@@ -218,6 +227,96 @@ struct PreviewPicture: View {
                         .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
                     .shadow(color: .black.opacity(0.18), radius: 6, y: 2)
                     .frame(maxWidth: size.width, maxHeight: size.height)
+            } else if let scheme = row.url.scheme, scheme == "https" || scheme == "http" {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.blue.opacity(0.08))
+                    .overlay {
+                        VStack(spacing: 12) {
+                            Image(systemName: "safari")
+                                .font(.system(size: 48))
+                                .foregroundStyle(Color.blue.gradient)
+                            Text(row.name)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.primary)
+                            Text("Press Return to open in your default browser")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                    }
+                    .frame(maxWidth: size.width, maxHeight: size.height)
+            } else if let scheme = row.url.scheme, scheme == "calc" {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.orange.opacity(0.08))
+                    .overlay {
+                        VStack(spacing: 10) {
+                            Text(row.name)
+                                .font(.system(size: 38, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.orange.gradient)
+                            Text(row.folder)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+                            Text("Press Return or ⌘C to copy result")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                    }
+                    .frame(maxWidth: size.width, maxHeight: size.height)
+            } else if let scheme = row.url.scheme, scheme == "terminal" {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.black.opacity(0.1))
+                    .overlay {
+                        VStack(spacing: 12) {
+                            Image(systemName: "terminal.fill")
+                                .font(.system(size: 48))
+                                .foregroundStyle(Color.primary)
+                            Text(row.name)
+                                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(.primary)
+                            Text("Press Return to run in Terminal")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                    }
+                    .frame(maxWidth: size.width, maxHeight: size.height)
+            } else if let scheme = row.url.scheme, scheme == "ai" {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.indigo.opacity(0.08))
+                    .overlay {
+                        VStack(spacing: 12) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 48))
+                                .foregroundStyle(Color.indigo.gradient)
+                            Text(row.name)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.primary)
+                            Text("Press Return to get answer with AI")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                    }
+                    .frame(maxWidth: size.width, maxHeight: size.height)
+            } else if let scheme = row.url.scheme, scheme == "sys" {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.purple.opacity(0.08))
+                    .overlay {
+                        VStack(spacing: 12) {
+                            Image(systemName: row.info["symbol"] ?? "gearshape.fill")
+                                .font(.system(size: 48))
+                                .foregroundStyle(Color.purple.gradient)
+                            Text(row.name)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.primary)
+                            Text(row.folder)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                    }
+                    .frame(maxWidth: size.width, maxHeight: size.height)
             } else {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.primary.opacity(0.05))
@@ -239,7 +338,7 @@ struct PreviewPicture: View {
         // without its controls.
         .onDisappear { if PreviewPlayback.shared.isCurrent(row) { PreviewPlayback.shared.stop() } }
         .task(id: Previews.shared.key(row, max(size.width, size.height))) {
-            guard row.segment != .chunk, row.kind != .code else { return }
+            guard row.segment != .chunk, row.kind != .code, row.url.isFileURL else { return }
             let side = max(size.width, size.height)
             image = Previews.shared.cached(row, side: side)
             loaded = image != nil

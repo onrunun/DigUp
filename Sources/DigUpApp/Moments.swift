@@ -43,6 +43,14 @@ extension ResultRow {
     /// opens with your words in Preview's search, but Preview doesn't go to the page by itself. Code opens in the
     /// editor chosen for it: "Open in Zed".
     var openTitle: String {
+        if let scheme = url.scheme {
+            if scheme == "http" || scheme == "https" { return "Open in Browser" }
+            if scheme == "calc" { return "Copy Result" }
+            if scheme == "sys" { return "Run Command" }
+            if scheme == "terminal" { return "Run in Terminal" }
+            if scheme == "ai" { return "Ask AI" }
+        }
+        if kind == .app { return "Launch App" }
         if kind == .code, !CodeEditor.current.id.isEmpty { return "Open in \(CodeEditor.current.name)" }
         if let moment, moment >= 1, Opener.jumpsToMoments(url) { return "Open at \(Self.clock(moment))" }
         return "Open"

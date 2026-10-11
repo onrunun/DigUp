@@ -120,6 +120,23 @@ struct SearchPanelView: View {
     /// code, at which line: "↩ Open in Zed at line 12".
     private var keysText: String {
         let row = controller.selectedRow
+        if let row, let scheme = row.url.scheme {
+            if scheme == "http" || scheme == "https" {
+                return "↩ Open in Browser   ⌘C Copy Link"
+            }
+            if scheme == "calc" {
+                return "↩ Copy Result   ⌘C Copy Result"
+            }
+            if scheme == "sys" {
+                return "↩ Execute   ⌘C Copy"
+            }
+            if scheme == "terminal" {
+                return "↩ Run in Terminal   ⌘C Copy Command"
+            }
+            if scheme == "ai" {
+                return "↩ Ask AI"
+            }
+        }
         if let row, row.kind == .code {
             let line = row.segment == .lines ? " at line \(row.codeLine)" : ""
             return "↩ \(row.openTitle)\(line)   ⌘↩ Reveal   ␣ Quick Look   ⌘C Copy"
@@ -238,7 +255,7 @@ private struct PanelRow: View {
     var body: some View {
         HStack(spacing: 10) {
             // Code's thumbnail would be a page of tiny text: its file type's icon says more.
-            ThumbnailView(url: row.url, side: 36, iconOnly: row.kind == .code)
+            ThumbnailView(url: row.url, side: 36, iconOnly: row.kind == .code || row.kind == .app)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(row.title)
@@ -331,7 +348,47 @@ struct ThumbnailView: View {
 
     var body: some View {
         ZStack {
-            if let image {
+            if let scheme = url.scheme, scheme == "https" || scheme == "http" {
+                RoundedRectangle(cornerRadius: side > 60 ? 8 : 6, style: .continuous)
+                    .fill(Color.blue.gradient)
+                    .overlay {
+                        Image(systemName: "safari")
+                            .font(.system(size: side * 0.52, weight: .medium))
+                            .foregroundStyle(.white)
+                    }
+            } else if let scheme = url.scheme, scheme == "calc" {
+                RoundedRectangle(cornerRadius: side > 60 ? 8 : 6, style: .continuous)
+                    .fill(Color.orange.gradient)
+                    .overlay {
+                        Image(systemName: "equal")
+                            .font(.system(size: side * 0.52, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+            } else if let scheme = url.scheme, scheme == "terminal" {
+                RoundedRectangle(cornerRadius: side > 60 ? 8 : 6, style: .continuous)
+                    .fill(Color.black.gradient)
+                    .overlay {
+                        Image(systemName: "terminal.fill")
+                            .font(.system(size: side * 0.5, weight: .medium))
+                            .foregroundStyle(.white)
+                    }
+            } else if let scheme = url.scheme, scheme == "ai" {
+                RoundedRectangle(cornerRadius: side > 60 ? 8 : 6, style: .continuous)
+                    .fill(Color.indigo.gradient)
+                    .overlay {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: side * 0.5, weight: .medium))
+                            .foregroundStyle(.white)
+                    }
+            } else if let scheme = url.scheme, scheme == "sys" {
+                RoundedRectangle(cornerRadius: side > 60 ? 8 : 6, style: .continuous)
+                    .fill(Color.purple.gradient)
+                    .overlay {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: side * 0.5, weight: .medium))
+                            .foregroundStyle(.white)
+                    }
+            } else if let image {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -345,7 +402,7 @@ struct ThumbnailView: View {
         .frame(width: side, height: side)
         .clipShape(RoundedRectangle(cornerRadius: side > 60 ? 8 : 6, style: .continuous))
         .task(id: url) {
-            guard !iconOnly else { return }
+            guard !iconOnly, url.isFileURL else { return }
             image = Thumbnails.shared.cached(url, side: side)
             if image == nil {
                 image = await Thumbnails.shared.load(url, side: side, scale: scale)
@@ -459,7 +516,7 @@ final class FileDragView: NSView, NSDraggingSource {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let down = mouseDownEvent, let url else { return }
+        guard let down = mouseDownEvent, let url, url.isFileURL else { return }
         let dx = event.locationInWindow.x - down.locationInWindow.x
         let dy = event.locationInWindow.y - down.locationInWindow.y
         guard dx * dx + dy * dy > 9 else { return }
@@ -483,16 +540,24 @@ final class FileDragView: NSView, NSDraggingSource {
         onClick()
         let menu = NSMenu()
         menu.addItem(ActionMenuItem(openTitle) { [onOpen] in onOpen() })
-        menu.addItem(ActionMenuItem("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) })
+        if url.isFileURL {
+            menu.addItem(ActionMenuItem("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) })
+        }
         menu.addItem(.separator())
         menu.addItem(ActionMenuItem("Copy") {
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.writeObjects([url as NSURL])
+            if url.isFileURL {
+                NSPasteboard.general.writeObjects([url as NSURL])
+            } else {
+                NSPasteboard.general.setString(url.absoluteString, forType: .string)
+            }
         })
-        menu.addItem(ActionMenuItem("Copy Path") {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(url.path, forType: .string)
-        })
+        if url.isFileURL {
+            menu.addItem(ActionMenuItem("Copy Path") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(url.path, forType: .string)
+            })
+        }
         return menu
     }
 

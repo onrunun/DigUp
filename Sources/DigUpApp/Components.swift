@@ -133,6 +133,7 @@ extension FileKind {
     func counted(_ count: Int) -> String {
         let one = count == 1
         let noun = switch self {
+        case .app: one ? "application" : "applications"
         case .screenshot: one ? "screenshot" : "screenshots"
         case .image: one ? "image" : "images"
         case .pdf: one ? "PDF" : "PDFs"

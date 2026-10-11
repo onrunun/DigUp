@@ -48,6 +48,25 @@ struct ResultRow: Identifiable, Equatable {
         info = hit.info
         self.terms = terms
     }
+    init(action id: String, url: URL, name: String, folder: String, excerpt: String? = nil, info: [String: String] = [:]) {
+        self.id = id
+        self.url = url
+        self.name = name
+        self.folder = folder
+        self.kind = .doc
+        self.segment = .name
+        self.segmentID = 0
+        self.loc = nil
+        self.locEnd = nil
+        self.focus = nil
+        self.excerpt = excerpt
+        self.matchedMeaning = false
+        self.matchedWords = true
+        self.modified = Date()
+        self.size = 0
+        self.info = info
+        self.terms = []
+    }
 
     /// The name to show: left to right as Finder shows it, also when it starts in Arabic ("ملاحظة.md", not "md.ملاحظة").
     var title: String { "\u{200E}" + name }
@@ -149,15 +168,16 @@ struct ResultRow: Identifiable, Equatable {
 
 /// How results are grouped in the panel, and the kind filters in the window.
 enum ResultGroupKind: CaseIterable {
-    case screenshots, images, documents, video, audio
+    case actions, apps, screenshots, images, documents, video, audio
     /// Code search's results (the code index; a search of it never shows anything else).
     case code
 
     /// The kinds of files the main index holds: the window's kind filters, ⌘2 to ⌘6.
-    static let files: [ResultGroupKind] = [.screenshots, .images, .documents, .video, .audio]
+    static let files: [ResultGroupKind] = [.apps, .screenshots, .images, .documents, .video, .audio]
 
     init(_ kind: FileKind) {
         switch kind {
+        case .app: self = .apps
         case .screenshot: self = .screenshots
         case .image: self = .images
         case .pdf, .doc: self = .documents
@@ -169,6 +189,8 @@ enum ResultGroupKind: CaseIterable {
 
     var title: String {
         switch self {
+        case .actions: "Actions"
+        case .apps: "Applications"
         case .screenshots: "Screenshots"
         case .images: "Images"
         case .documents: "Documents"
@@ -180,6 +202,8 @@ enum ResultGroupKind: CaseIterable {
 
     var symbol: String {
         switch self {
+        case .actions: "bolt.fill"
+        case .apps: FileKind.app.symbol
         case .screenshots: FileKind.screenshot.symbol
         case .images: FileKind.image.symbol
         case .documents: FileKind.doc.symbol
@@ -191,6 +215,8 @@ enum ResultGroupKind: CaseIterable {
 
     var kinds: Set<FileKind> {
         switch self {
+        case .actions: []
+        case .apps: [.app]
         case .screenshots: [.screenshot]
         case .images: [.image]
         case .documents: [.pdf, .doc]
@@ -226,11 +252,21 @@ struct ResultSet: Equatable {
         let terms = Searcher.terms(query)
         var order: [ResultGroupKind] = []
         var byGroup: [ResultGroupKind: [ResultRow]] = [:]
+        let actions = QuickActions.generate(for: query, hits: hits)
+        if !actions.isEmpty {
+            order.append(.actions)
+            byGroup[.actions] = actions
+        }
         ranked = hits.prefix(strong).map { ResultRow($0, terms: terms) }
         for row in ranked {
             let group = ResultGroupKind(row.kind)
             if byGroup[group] == nil { order.append(group) }
             byGroup[group, default: []].append(row)
+        }
+        if let appIndex = order.firstIndex(of: .apps) {
+            order.remove(at: appIndex)
+            let insertPos = order.contains(.actions) ? 1 : 0
+            order.insert(.apps, at: insertPos)
         }
         groups = order.map {
             ResultGroup(kind: $0, rows: Array(byGroup[$0]!.prefix(rowsPerGroup)), total: byGroup[$0]!.count)
@@ -246,6 +282,7 @@ struct ResultSet: Equatable {
 extension FileKind {
     var title: String {
         switch self {
+        case .app: "Application"
         case .screenshot: "Screenshot"
         case .image: "Image"
         case .pdf: "PDF"
@@ -258,6 +295,7 @@ extension FileKind {
 
     var symbol: String {
         switch self {
+        case .app: "app.badge"
         case .screenshot: "camera.viewfinder"
         case .image: "photo"
         case .pdf: "doc.richtext"
