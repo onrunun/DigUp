@@ -357,7 +357,10 @@ final class SearchPanelController {
                 return
             } else if scheme == "ai" {
                 let prompt = row.info["prompt"] ?? ""
-                QuickActions.openAIQuery(prompt)
+                flash("Asking Gemini 3.8 Flash…")
+                QuickActions.openAIQuery(prompt) { [weak self] _ in
+                    self?.flash("Copied Gemini answer!")
+                }
                 hide()
                 return
             }

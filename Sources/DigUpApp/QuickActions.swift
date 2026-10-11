@@ -1,10 +1,29 @@
 import AppKit
 import DigUpKit
 import Foundation
+import JavaScriptCore
 
-/// Fast zero-overhead launcher reflexes: Web URLs, Math evaluation, System commands, Terminal, and AI queries.
+/// Fast zero-overhead launcher reflexes: Web URLs, Math evaluation, System commands, Terminal, and Google Antigravity Gemini.
 enum QuickActions {
+    private static let jsContext = JSContext()
+
+    private static let fileExtensions: Set<String> = [
+        "md", "txt", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+        "py", "js", "ts", "tsx", "jsx", "json", "yaml", "yml", "sh", "bash", "zsh",
+        "swift", "c", "cpp", "h", "m", "rs", "go", "rb", "java", "kt", "html", "css", "scss",
+        "png", "jpg", "jpeg", "gif", "svg", "webp", "mp4", "mov", "mp3", "wav", "m4a",
+        "zip", "tar", "gz", "app", "dmg", "pkg", "iso", "csv", "sql", "sqlite", "db", "log", "env", "xml", "toml", "lock"
+    ]
+
+    private static let webTLDs: Set<String> = [
+        "com", "org", "net", "edu", "gov", "mil", "int",
+        "dev", "io", "ai", "co", "app", "tech", "me", "xyz", "info", "biz",
+        "cloud", "online", "site", "store", "live", "space", "shop", "top", "club",
+        "tr", "de", "uk", "fr", "ru", "jp", "ca", "au", "br", "in", "it", "es", "nl", "se", "no", "fi", "dk", "ch", "at", "be"
+    ]
+
     /// Detects if `text` is a Web URL, domain name, or localhost.
+    /// Excludes filenames with common extensions (e.g. readme.md, main.py).
     static func detectURL(_ text: String) -> URL? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains(" ") else { return nil }
@@ -20,17 +39,28 @@ enum QuickActions {
         if trimmed.hasPrefix("127.0.0.1:") || trimmed.hasPrefix("127.0.0.1/") || trimmed == "127.0.0.1" {
             return URL(string: "http://" + trimmed)
         }
+
+        if trimmed.hasPrefix("www.") {
+            return URL(string: "https://" + trimmed)
+        }
         
-        // Standard domain with 2+ letter TLD (e.g. sahibinden.com, github.com, utkuk.dev, apple.com/tr)
-        let domainPattern = #"^[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}(:\d+)?(/.*)?$"#
-        if trimmed.range(of: domainPattern, options: .regularExpression) != nil {
+        // Extract host to check TLD
+        let host = trimmed.components(separatedBy: "/").first?.components(separatedBy: ":").first ?? ""
+        let parts = host.components(separatedBy: ".")
+        guard parts.count >= 2, let tld = parts.last?.lowercased() else { return nil }
+        
+        // If it's a known file extension, it's NOT a web URL (e.g. readme.md, main.py)
+        if fileExtensions.contains(tld) { return nil }
+        
+        // Must be a recognized web TLD
+        if webTLDs.contains(tld) {
             return URL(string: "https://" + trimmed)
         }
         
         return nil
     }
 
-    /// Evaluates simple arithmetic expressions safely via NSExpression.
+    /// Evaluates simple arithmetic expressions safely via JavaScriptCore (never crashes on partial/syntax errors).
     static func detectMath(_ text: String) -> (expr: String, result: String)? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 3 else { return nil }
@@ -46,13 +76,15 @@ enum QuickActions {
         // Replace power operator if present
         let sanitized = trimmed.replacingOccurrences(of: "^", with: "**")
         
-        let expr = NSExpression(format: sanitized)
-        guard let num = expr.expressionValue(with: nil, context: nil) as? NSNumber else { return nil }
+        guard let ctx = jsContext else { return nil }
+        ctx.exception = nil
+        let jsVal = ctx.evaluateScript(sanitized)
+        guard ctx.exception == nil, let num = jsVal?.toNumber()?.doubleValue, num.isFinite else { return nil }
         
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.maximumFractionDigits = 4
-        guard let formatted = formatter.string(from: num) else { return nil }
+        guard let formatted = formatter.string(from: NSNumber(value: num)) else { return nil }
         
         return (trimmed, formatted)
     }
@@ -95,7 +127,7 @@ enum QuickActions {
             return ("Shut Down Mac…", "shutdown", "power.circle.fill", "System · Shut down computer")
         case "dark mode", "toggle dark mode":
             return ("Toggle Dark Mode", "darkmode", "circle.lefthalf.filled", "Appearance · Toggle Light / Dark mode")
-        case "trash", "empty trash":
+        case "empty trash":
             return ("Empty Trash", "trash", "trash.fill", "Finder · Empty Trash items")
         case "ip", "my ip", "local ip":
             if let ip = getLocalIP() {
@@ -129,12 +161,12 @@ enum QuickActions {
         if trimmed.hasPrefix("?") {
             let prompt = trimmed.dropFirst().trimmingCharacters(in: .whitespaces)
             guard !prompt.isEmpty else { return nil }
-            return (prompt, "Ask AI: “\(prompt)”")
+            return (prompt, "Ask Gemini 3.8 Flash: “\(prompt)”")
         }
         if trimmed.lowercased().hasPrefix("ai:") {
             let prompt = trimmed.dropFirst(3).trimmingCharacters(in: .whitespaces)
             guard !prompt.isEmpty else { return nil }
-            return (prompt, "Ask AI: “\(prompt)”")
+            return (prompt, "Ask Gemini 3.8 Flash: “\(prompt)”")
         }
         return nil
     }
@@ -181,11 +213,41 @@ enum QuickActions {
         NSAppleScript(source: script)?.executeAndReturnError(nil)
     }
 
-    /// Opens AI prompt in browser.
-    static func openAIQuery(_ prompt: String) {
-        let encoded = prompt.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? prompt
-        if let url = URL(string: "https://www.perplexity.ai/search?q=\(encoded)") {
-            NSWorkspace.shared.open(url)
+    /// Synchronous query to Google Antigravity Gemini 3.8 Flash via agy CLI.
+    nonisolated static func queryGemini(_ prompt: String) -> String? {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/Users/salimonurcetin/.local/bin/agy")
+        task.arguments = ["-p", prompt]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+        do {
+            try task.run()
+            task.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return (output?.isEmpty == false) ? output : nil
+        } catch {
+            return nil
+        }
+    }
+
+    /// Queries Google Antigravity Gemini 3.8 Flash asynchronously and copies answer to clipboard.
+    static func openAIQuery(_ prompt: String, onAnswer: @escaping @Sendable @MainActor (String) -> Void) {
+        Task { @MainActor in
+            let answer = await Task.detached(priority: .userInitiated) {
+                queryGemini(prompt)
+            }.value
+            if let answer {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(answer, forType: .string)
+                onAnswer(answer)
+            } else {
+                let encoded = prompt.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? prompt
+                if let url = URL(string: "https://antigravity.utkuk.dev/?q=\(encoded)") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
         }
     }
 
@@ -216,15 +278,15 @@ enum QuickActions {
                 action: "action:ai:\(prompt)",
                 url: URL(string: "ai://ask") ?? URL(fileURLWithPath: "/"),
                 name: display,
-                folder: "AI Assistant · Perplexity AI",
-                excerpt: "Ask AI: “\(prompt)”",
+                folder: "Google Antigravity · Gemini 3.8 Flash",
+                excerpt: "Ask Gemini 3.8 Flash: “\(prompt)”",
                 info: ["action": "ai", "prompt": prompt]
             )
             actions.append(row)
             return actions
         }
 
-        // 3. System Commands (lock, sleep, dark mode, ip...)
+        // 3. System Commands (lock, sleep, dark mode, ip, empty trash...)
         if let (name, cmd, symbol, folder) = detectSystemCommand(trimmed) {
             let row = ResultRow(
                 action: "action:sys:\(cmd)",

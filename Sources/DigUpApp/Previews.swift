@@ -285,14 +285,18 @@ struct PreviewPicture: View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.indigo.opacity(0.08))
                     .overlay {
-                        VStack(spacing: 12) {
+                        VStack(spacing: 10) {
                             Image(systemName: "sparkles")
-                                .font(.system(size: 48))
+                                .font(.system(size: 46))
                                 .foregroundStyle(Color.indigo.gradient)
                             Text(row.name)
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(.primary)
-                            Text("Press Return to get answer with AI")
+                                .multilineTextAlignment(.center)
+                            Text("Google Antigravity · Gemini 3.8 Flash")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(Color.indigo)
+                            Text("Press Return to query & copy answer to clipboard")
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
                         }
