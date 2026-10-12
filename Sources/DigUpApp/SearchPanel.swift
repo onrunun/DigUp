@@ -34,7 +34,7 @@ final class SearchPanelController {
         didSet { if query != oldValue { queryChanged() } }
     }
     private(set) var results = ResultSet.empty
-    private(set) var showWeaker = false
+    private(set) var showWeaker = true
     private(set) var selection: String?
     private(set) var phase = SearchPhase.empty
     /// The query is a search of code ("code: …"): the code index, and nothing else.
@@ -78,8 +78,7 @@ final class SearchPanelController {
     /// The selectable rows in order: strong results group by group, the fold, then the weaker ones if unfolded.
     var rowIDs: [String] {
         results.groups.flatMap { $0.rows.map(\.id) }
-            + (results.weaker.isEmpty ? [] : [Self.weakerToggle])
-            + (showWeaker ? results.weaker.map(\.id) : [])
+            + (showWeaker ? results.weaker.map(\.id) : (results.weaker.isEmpty ? [] : [Self.weakerToggle]))
     }
     var rows: [ResultRow] { results.groups.flatMap(\.rows) + (showWeaker ? results.weaker : []) }
     var selectedRow: ResultRow? { rows.first { $0.id == selection } }
@@ -197,7 +196,7 @@ final class SearchPanelController {
     private func show(_ hits: [SearchHit], query: String, phase: SearchPhase) {
         // Code is one group: it gets the room of all of them.
         results = ResultSet(hits, query: query, rowsPerGroup: isCode ? Self.rowsPerGroup * 3 : Self.rowsPerGroup)
-        if !navigated { showWeaker = false }
+        if !navigated { showWeaker = true }
         // Follow the top hit until you pick something with the arrow keys.
         if !navigated || !rowIDs.contains(where: { $0 == selection }) {
             selection = rowIDs.first
@@ -209,7 +208,11 @@ final class SearchPanelController {
 
     func toggleWeaker() {
         showWeaker.toggle()
-        selection = Self.weakerToggle
+        if showWeaker {
+            if selection == Self.weakerToggle { selection = results.weaker.first?.id }
+        } else {
+            selection = Self.weakerToggle
+        }
     }
 
     // MARK: Keys

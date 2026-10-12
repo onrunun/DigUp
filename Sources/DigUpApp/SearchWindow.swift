@@ -211,7 +211,7 @@ final class SearchModel {
     /// What the window shows instead of results: "code:" alone (what to type), or code search that's off.
     private(set) var codePhase: SearchPhase?
     var selection: String?
-    var showWeaker = false
+    var showWeaker = true
     var showsPreview = true
     /// You moved the selection with the arrow keys since the last edit: Space and ← → act on results then.
     private(set) var navigated = false
@@ -298,7 +298,7 @@ final class SearchModel {
                 guard !Task.isCancelled, current == generation else { return }
                 counts = [.code: Searcher.strongCount(hits)]
                 results = ResultSet(hits, query: text)
-                showWeaker = false
+                showWeaker = true
                 if !rows.contains(where: { $0.id == selection }) { selection = rows.first?.id }
                 hasResults = true
                 log("window: code \"\(text)\": \(results.ranked.count) results + \(results.weaker.count) weaker")
@@ -317,7 +317,7 @@ final class SearchModel {
             for hit in all.prefix(Searcher.strongCount(all)) { counts[ResultGroupKind(hit.kind), default: 0] += 1 }
             self.counts = counts
             results = ResultSet(shown, query: text)
-            showWeaker = false
+            showWeaker = true
             if !rows.contains(where: { $0.id == selection }) { selection = rows.first?.id }
             hasResults = true
             log("window: \"\(text)\"\(filter.map { " in \($0.title)" } ?? ""): \(results.ranked.count) results "
