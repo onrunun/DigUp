@@ -114,7 +114,7 @@ public final class Searcher {
     public static let codeWordWeight = 1.0
 
     public func search(_ text: String, queryVector: [Float]?, kinds: Set<FileKind>? = nil, limit: Int = 20,
-                       zGate: Double = 2.0, wordWeight: Double? = nil, prefixLast: Bool = false) throws -> [SearchHit] {
+                       zGate: Double = 2.0, wordWeight: Double? = nil, prefixLast: Bool = true) throws -> [SearchHit] {
         let wordWeight = wordWeight ?? (isCode ? Self.codeWordWeight : Self.wordWeight)
         if queryVector != nil, !vectorsLoaded { try reload() }
         let fileKind = self.fileKind
@@ -137,15 +137,43 @@ public final class Searcher {
         let identifier = isCode ? CodeLookup.identifier(text) : nil
         var words: [(file: Int64, segment: Int64, snippet: String?)] = []
         var coverage: [Int64: Double] = [:]   // share of the query's words found anywhere in the file
+        var nameBonuses: [Int64: Double] = [:]
+        let queryLower = SearchText.normalized(text).lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let patterns = identifier.map { [CodeLookup.phrase($0)] } ?? Self.patterns(terms, prefixLast: prefixLast)
         if !patterns.isEmpty {
             var seen = Set<Int64>()
             try store.db.query("""
-                SELECT s.file, s.id, snippet(fts, 1, '«', '»', '…', 12), fts.original FROM fts
+                SELECT s.file, s.id, snippet(fts, 1, '«', '»', '…', 12), fts.original, s.kind, fts.name FROM fts
                 JOIN segments s ON s.id = fts.rowid
                 WHERE fts MATCH ? ORDER BY bm25(fts, 3.0, 1.0) LIMIT 1000
                 """, [.text(patterns.joined(separator: " OR "))]) { row in
                 let file = row.int(0)
+                let segmentKind = row.text(4) ?? ""
+                let rawName = row.text(5) ?? ""
+
+                if segmentKind == "name", !rawName.isEmpty {
+                    let cleanName = SearchText.normalized(rawName).lowercased()
+                        .replacingOccurrences(of: ".app", with: "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let isApp = fileKind[file] == .app
+
+                    var bonus: Double = 0
+                    if cleanName == queryLower {
+                        bonus = isApp ? 25.0 : 12.0
+                    } else if cleanName.hasPrefix(queryLower) {
+                        bonus = isApp ? 18.0 : 10.0
+                    } else if cleanName.split(separator: " ").contains(where: { $0.hasPrefix(queryLower) }) {
+                        bonus = isApp ? 12.0 : 7.0
+                    } else if cleanName.contains(queryLower) {
+                        bonus = isApp ? 8.0 : 4.0
+                    } else {
+                        bonus = isApp ? 4.0 : 2.0
+                    }
+                    if bonus > (nameBonuses[file] ?? 0) {
+                        nameBonuses[file] = bonus
+                    }
+                }
+
                 guard words.count < 100, allowed(file), seen.insert(file).inserted else { return }
                 // Text that normalizing changed is quoted as it's written (with its hamza, harakat, joiners).
                 let snippet = row.text(3).flatMap { SearchText.snippet($0, terms: terms) } ?? row.text(2)
@@ -171,11 +199,18 @@ public final class Searcher {
         let hinted = Self.kindHints(text)
         var candidates = Set(best.filter { $0.value.z >= zGate }.keys)
         for (file, share) in coverage where share >= 0.5 { candidates.insert(file) }
+        for file in nameBonuses.keys where allowed(file) { candidates.insert(file) }
         var scored: [Int64: Double] = [:]
         for file in candidates {
             var score = meaningWeight * max(best[file]?.z ?? 0, 0) + wordsWeight * pow(coverage[file] ?? 0, 1.5)
             if let kind = fileKind[file], hinted.contains(kind) { score += 1 }
-            if let kind = fileKind[file], kind == .app { score += 2.5 }
+            if let bonus = nameBonuses[file] { score += bonus }
+            if let kind = fileKind[file], kind == .app {
+                let hasKeywordOrNameMatch = (coverage[file] ?? 0) > 0 || nameBonuses[file] != nil
+                if hasKeywordOrNameMatch || hinted.contains(.app) || terms.isEmpty {
+                    score += 2.5
+                }
+            }
             scored[file] = score
         }
 
@@ -188,7 +223,7 @@ public final class Searcher {
             let semantic = best[file]
             let keyword = wordRank[file]
             // Point at the best meaning segment if it stands out; else at the segment the words matched.
-            let useMeaning = semantic.map { $0.z >= zGate || keyword == nil } ?? false
+            let useMeaning = nameBonuses[file] == nil && (semantic.map { $0.z >= zGate || keyword == nil } ?? false)
             guard var segmentID = useMeaning ? semantic.map({ rowSegment[$0.row] }) : keyword?.1.segment else { continue }
             var focus: Double?
             if isCode {
@@ -375,9 +410,11 @@ public final class Searcher {
     /// two letters or more count; a Bengali letter with its vowel sign ("মা") is two.
     public static func terms(_ text: String) -> [String] {
         var seen = Set<String>()
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let minLength = trimmed.unicodeScalars.count == 1 ? 1 : 2
         return SearchText.normalized(text).lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.unicodeScalars.count >= 2 && !stopwords.contains($0) && seen.insert($0).inserted }
+            .filter { $0.unicodeScalars.count >= minLength && !stopwords.contains($0) && seen.insert($0).inserted }
     }
 
     /// FTS5 patterns for the query's words: quoted, and as prefixes for the last word while it's being typed and for

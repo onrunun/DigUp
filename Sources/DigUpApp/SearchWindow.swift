@@ -293,7 +293,7 @@ final class SearchModel {
             task = Task {
                 let vector = await engine.embedQuery(text, code: true)
                 guard !Task.isCancelled, current == generation else { return }
-                let hits = await engine.search(text, vector: vector, prefixLast: false, limit: 120, code: true)
+                let hits = await engine.search(text, vector: vector, prefixLast: true, limit: 120, code: true)
                 try? await Task.sleep(until: showAt, tolerance: .milliseconds(1), clock: .continuous)
                 guard !Task.isCancelled, current == generation else { return }
                 counts = [.code: Searcher.strongCount(hits)]
@@ -308,8 +308,8 @@ final class SearchModel {
         task = Task {
             let vector = await engine.embedQuery(text)
             guard !Task.isCancelled, current == generation else { return }
-            let all = await engine.search(text, vector: vector, prefixLast: false, limit: 120)
-            let shown = filter == nil ? all : await engine.search(text, vector: vector, prefixLast: false,
+            let all = await engine.search(text, vector: vector, prefixLast: true, limit: 120)
+            let shown = filter == nil ? all : await engine.search(text, vector: vector, prefixLast: true,
                                                                     kinds: filter!.kinds, limit: 120)
             try? await Task.sleep(until: showAt, tolerance: .milliseconds(1), clock: .continuous)
             guard !Task.isCancelled, current == generation else { return }

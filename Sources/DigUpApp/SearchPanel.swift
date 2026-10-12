@@ -175,7 +175,7 @@ final class SearchPanelController {
             let vector = await engine.embedQuery(text, code: code)
             guard !Task.isCancelled, current == generation else { return }
             let searchStarted = Date()
-            let hits = await engine.search(text, vector: vector, prefixLast: false, code: code)
+            let hits = await engine.search(text, vector: vector, prefixLast: true, code: code)
             let searched = Date()
             try? await Task.sleep(until: showAt, tolerance: .milliseconds(1), clock: .continuous)
             guard !Task.isCancelled, current == generation else { return }

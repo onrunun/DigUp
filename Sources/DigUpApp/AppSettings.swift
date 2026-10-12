@@ -66,6 +66,10 @@ nonisolated struct AppSettings: Sendable {
         if !userRoots.contains(systemAppsDir) && FileManager.default.fileExists(atPath: systemAppsDir.path) {
             userRoots.append(systemAppsDir)
         }
+        let cryptexAppsDir = URL(fileURLWithPath: "/System/Cryptexes/App/System/Applications")
+        if !userRoots.contains(cryptexAppsDir) && FileManager.default.fileExists(atPath: cryptexAppsDir.path) {
+            userRoots.append(cryptexAppsDir)
+        }
         return AppSettings(
             roots: userRoots,
             excludedFolders: folders(defaults, "excludedFolders"),

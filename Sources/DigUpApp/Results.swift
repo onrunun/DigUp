@@ -126,7 +126,7 @@ struct ResultRow: Identifiable, Equatable {
         case .page: return "Matches the text on \(page)"
         case .pageImage: return "Matches \(page)"
         case .chunk: return "Matches its text"
-        case .name: return "Matches its name"
+        case .name: return matchedWords ? "Matches its name" : "Related to your search"
         case .lines, .cells: return "Matches \(span ?? "the code")"
         }
     }
