@@ -12,7 +12,9 @@ public enum Classification: Equatable, Sendable {
 public enum Rules {
     /// Folders never worth walking into. Hidden folders and bundles are skipped by the enumerator itself.
     static let skippedFolderNames: Set<String> = [
-        "node_modules", "bower_components", "venv", "site-packages", "__pycache__", "DerivedData", "Pods", "Carthage",
+        "node_modules", "bower_components", "venv", ".venv", "site-packages", "__pycache__", "DerivedData", "Pods", "Carthage",
+        ".output", ".next", ".nuxt", ".turbo", ".expo", ".svelte-kit", ".astro",
+        ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox", ".gradle"
     ]
 
     /// Any of these in a folder makes it a code project, where only screenshots are indexed.
@@ -61,6 +63,8 @@ public enum Rules {
         "vendor", "Vendor", "vendored", "third_party", "third-party", "thirdparty", "3rdparty", "external", "extern",
         "deps", "build", "Build", "dist", "out", "target", "obj", "coverage", "htmlcov", "generated", "__generated__",
         "wandb", "mlruns", "lightning_logs",
+        ".next", ".nuxt", ".output", ".turbo", ".expo", ".svelte-kit", ".astro",
+        ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox"
     ]
 
     /// What code search reads in the code folders: source files, a repo's docs and settings, and notebooks. Never data
@@ -71,7 +75,8 @@ public enum Rules {
         if options.excludedExtensions.contains(ext) { return .skip("excluded type") }
         if isSecret(name) { return .skip("key or password file") }
         let lower = name.lowercased()
-        if lower.hasSuffix(".min.js") || lower.hasSuffix(".min.mjs") || lower.hasSuffix(".min.css") {
+        if lower.hasSuffix(".min.js") || lower.hasSuffix(".min.mjs") || lower.hasSuffix(".min.css")
+            || lower.hasSuffix(".bundle.js") || lower.hasSuffix(".chunk.js") {
             return .skip("minified")
         }
         if ["license", "licence", "copying", "notice"].contains(where: lower.hasPrefix) { return .skip("license") }
