@@ -83,7 +83,7 @@ nonisolated struct AppSettings: Sendable {
             indexDirectory: defaults.string(forKey: "indexDir").map(folderURL) ?? defaultIndexDirectory,
             modelsDirectory: defaults.string(forKey: "modelsDir").map(folderURL) ?? ModelFiles.installed,
             hotkey: defaults.string(forKey: "hotkey") ?? defaultHotkey,
-            indexOnBattery: defaults.object(forKey: "indexOnBattery") == nil || defaults.bool(forKey: "indexOnBattery"),
+            indexOnBattery: defaults.object(forKey: "indexOnBattery") == nil ? false : defaults.bool(forKey: "indexOnBattery"),
             indexHoursOn: defaults.bool(forKey: "indexHoursOn"),
             indexHours: IndexHours(
                 start: defaults.object(forKey: "indexHoursFrom") == nil ? IndexHours.night.start

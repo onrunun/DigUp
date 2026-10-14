@@ -470,6 +470,8 @@ nonisolated final class Engine: @unchecked Sendable {
     }
 
     private func requestSync() {
+        let blocked = lock.withLock { backfillBlocker == "Low Power Mode" || backfillBlocker == "on battery" }
+        guard !blocked else { return }
         syncWantedAt = Date()
         if helper != nil { send("sync") } else { startHelper() }
     }
@@ -482,6 +484,11 @@ nonisolated final class Engine: @unchecked Sendable {
             (self.roots, self.excluded, self.excludedTypes, self.paused || heldUntil != nil, backfillBlocker == nil)
         }
         let (codeRoots, codeExcluded) = lock.withLock { (self.codeRoots, self.codeExcluded) }
+        let blocker = lock.withLock { backfillBlocker }
+        if blocker == "Low Power Mode" || blocker == "on battery" {
+            update { $0.activity = .idle }
+            return
+        }
         guard helper == nil, !paused else {
             // Paused, or outside the set hours: the next start syncs. Launched outside them, it never started.
             if helper == nil { update { if case .starting = $0.activity { $0.activity = .idle } } }
@@ -784,7 +791,9 @@ nonisolated final class Engine: @unchecked Sendable {
         lock.withLock { backfillBlocker = reason }
         update { $0.waitingFor = reason }
         indexQueue.async { [self] in
-            if helper != nil {
+            if let reason, reason == "Low Power Mode" || reason == "on battery" {
+                stopHelper()
+            } else if helper != nil {
                 send(reason == nil ? "backfill on" : "backfill off")
             } else if reason == nil {
                 startHelper()
@@ -921,6 +930,7 @@ nonisolated final class Engine: @unchecked Sendable {
     /// Gets meaning search ready as the panel opens: starts the query encoder (~0.35 s cold) and loads the vectors,
     /// in parallel, so both are usually done by the time you've typed a few words.
     func prewarm() {
+        guard PowerPolicy.onACPower(), !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
         encoderQueue.async { [self] in
             encoderFailed = false   // opening the panel is a fresh chance
             if runningEncoder() != nil { scheduleIdleExit() }
@@ -1015,9 +1025,10 @@ nonisolated final class Engine: @unchecked Sendable {
     /// vectors go with it; keyword search keeps working, and the next panel open brings both back.
     private func scheduleIdleExit() {
         encoderIdleExit?.cancel()
+        let timeout: Double = (ProcessInfo.processInfo.isLowPowerModeEnabled || !PowerPolicy.onACPower()) ? 15.0 : encoderIdleSeconds
         let exit = DispatchWorkItem { [self] in
             guard encoder != nil else { return }
-            log("encoder: idle for \(Int(encoderIdleSeconds)) s, stopping")
+            log("encoder: idle for \(Int(timeout)) s, stopping")
             stopEncoder()
             searchQueue.async { [self] in
                 searcher?.releaseVectors()
@@ -1026,7 +1037,7 @@ nonisolated final class Engine: @unchecked Sendable {
             }
         }
         encoderIdleExit = exit
-        encoderQueue.asyncAfter(deadline: .now() + encoderIdleSeconds, execute: exit)
+        encoderQueue.asyncAfter(deadline: .now() + timeout, execute: exit)
     }
 
     private func stopEncoder() {
