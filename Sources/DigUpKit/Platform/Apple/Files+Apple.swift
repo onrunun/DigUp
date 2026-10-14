@@ -59,8 +59,11 @@ enum FileSystem {
     /// whose contents would be downloaded on read.
     static func info(of path: String) -> FileInfo? {
         var info = stat()
-        guard lstat(path, &info) == 0 else { return nil }
-        return FileInfo(isRegular: (info.st_mode & S_IFMT) == S_IFREG, size: Int64(info.st_size),
+        let isApp = path.hasSuffix(".app")
+        let statResult = isApp ? stat(path, &info) : lstat(path, &info)
+        guard statResult == 0 else { return nil }
+        let isRegular = (info.st_mode & S_IFMT) == S_IFREG || (isApp && (info.st_mode & S_IFMT) == S_IFDIR)
+        return FileInfo(isRegular: isRegular, size: Int64(info.st_size),
                         mtime: Double(info.st_mtimespec.tv_sec) + Double(info.st_mtimespec.tv_nsec) / 1e9,
                         inode: UInt64(info.st_ino), device: UInt64(bitPattern: Int64(info.st_dev)),
                         dataless: info.st_flags & 0x4000_0000 != 0)   // SF_DATALESS

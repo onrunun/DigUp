@@ -82,10 +82,7 @@ public enum Crawler {
                 case .skip(let reason):
                     report.skipped[reason, default: 0] += 1
                 case .index(let kind):
-                    var info = stat()
-                    let statResult = kind == .app ? stat(url.path, &info) : lstat(url.path, &info)
-                    guard statResult == 0,
-                          ((info.st_mode & S_IFMT) == S_IFREG || (kind == .app && (info.st_mode & S_IFMT) == S_IFDIR)) else {
+                    guard let info = FileSystem.info(of: url.path), info.isRegular else {
                         report.skipped["link or special file", default: 0] += 1
                         return
                     }

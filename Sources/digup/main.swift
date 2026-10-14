@@ -366,7 +366,7 @@ func search(_ args: Arguments) throws {
     let encoded = Date()
     let hits = try searcher.search(query, queryVector: vector, kinds: try args.kinds(),
                                    limit: args.values["-n"].flatMap(Int.init) ?? 10, zGate: args.zGate,
-                                   wordWeight: args.wordWeight)
+                                   wordWeight: args.wordWeight, prefixLast: true)
     let searched = Date()
     if args.flags.contains("--json") {
         let rows = hits.map(hitFields)

@@ -261,6 +261,7 @@ public final class Indexer {
         case .audio(_, let duration): measured.add("audioSecond", units: duration, seconds: seconds)
         case .video(_, _, let duration): measured.add("videoSecond", units: duration, seconds: seconds)
         case .code(let file): measured.add("codeStretch", units: Double(file.pieces.count), seconds: seconds)
+        case .app: break
         case .nothing: break
         }
     }
